@@ -59,12 +59,24 @@ function formatEndpoint(idx: number, item: EndpointItem): string {
 }
 
 export function registerTools(server: McpServer): void {
+  const prefix = config.envName ? `${config.envName}_` : '';
+  const T = {
+    overview: `gwms_${prefix}doc_overview`,
+    search: `gwms_${prefix}search_apis`,
+    tapd: `gwms_${prefix}list_tapd_apis`,
+    detail: `gwms_${prefix}api_detail`,
+    refresh: `gwms_${prefix}refresh_cache`,
+  };
+  const envHead = config.envName ? `[${config.envName}] ` : '';
+  const envTitle = config.envName ? `（${config.envName} 环境）` : '';
+  const envScope = config.envName ? `本工具对应【${config.envName}】环境，结果只反映该环境的文档。` : '';
+
   server.registerTool(
-    'gwms_doc_overview',
+    T.overview,
     {
-      title: 'GWMS 接口文档概览',
+      title: `GWMS 接口文档概览${envTitle}`,
       description:
-        '获取 GWMS Java 接口文档的全景信息：数据源、缓存时间、接口总数、顶层分组（Pda端/仓库端/商家端/所有）统计，以及全部标签分类列表。标签分四类：' +
+        `${envScope}获取 GWMS Java 接口文档的全景信息：数据源、缓存时间、接口总数、顶层分组（Pda端/仓库端/商家端/所有）统计，以及全部标签分类列表。标签分四类：` +
         'feature=功能模块标签（如"备货单管理"）、tapd=TAPD 需求标签（纯数字或 v/f 前缀，如"1082335"，每次需求改动接口会打上该标签）、' +
         'date=日期标签、other=其他。当需要了解文档结构、查找功能模块或 TAPD 需求号、确认数据新鲜度时使用。',
       inputSchema: {
@@ -90,6 +102,7 @@ export function registerTools(server: McpServer): void {
         const head = [
           '# GWMS 接口文档概览',
           '',
+          ...(config.envName ? [`- 环境: ${config.envName}`] : []),
           `- 数据源: ${dataSource(store)}`,
           `- 缓存时间: ${fmtTime(store.meta.fetchedAt)}（TTL ${fmtTtl(config.ttlMs)}，过期自动刷新）`,
           `- 接口总数: ${store.opCount} 个（路径 ${store.endpoints.length} 条）`,
@@ -126,26 +139,26 @@ export function registerTools(server: McpServer): void {
         const tips = [
           '',
           '用法提示：',
-          '- 用 gwms_search_apis 按关键词搜索接口',
-          '- 用 gwms_list_tapd_apis 查看某个 TAPD 需求改动的接口清单',
-          '- 用 gwms_api_detail 查看接口的完整出入参定义',
+          `- 用 ${T.search} 按关键词搜索接口`,
+          `- 用 ${T.tapd} 查看某个 TAPD 需求改动的接口清单`,
+          `- 用 ${T.detail} 查看接口的完整出入参定义`,
         ];
 
         return ok([...head, '', ...sections.flatMap((s) => [s, '']), ...tips].join('\n'));
       } catch (err) {
-        return fail(`获取文档概览失败: ${errText(err)}`);
+        return fail(`${envHead}获取文档概览失败: ${errText(err)}`);
       }
     },
   );
 
   server.registerTool(
-    'gwms_search_apis',
+    T.search,
     {
-      title: '搜索 GWMS 接口',
+      title: `搜索 GWMS 接口${envTitle}`,
       description:
-        '按关键词搜索 GWMS 接口，关键词会同时匹配接口路径、中文摘要、operationId 和标签名，多个关键词用空格分隔（全部命中才算匹配）。' +
+        `${envScope}按关键词搜索 GWMS 接口，关键词会同时匹配接口路径、中文摘要、operationId 和标签名，多个关键词用空格分隔（全部命中才算匹配）。` +
         '结果已按接口去重（同一接口挂多个标签只显示一条，标签全部列出）。返回精简列表，含 method、path、摘要、标签、所属端；' +
-        '再用 gwms_api_detail 查完整定义。',
+        `再用 ${T.detail} 查完整定义。`,
       inputSchema: {
         keyword: z.string().describe('搜索关键词，如 "备货单 分页" 或 "warehouse_stock_order" 或 "库存"'),
         group: z
@@ -186,18 +199,18 @@ export function registerTools(server: McpServer): void {
 
         if (total === 0) {
           return ok(
-            `${staleNotice(store)}未找到匹配的接口。\n\n` +
+            `${envHead}${staleNotice(store)}未找到匹配的接口。\n\n` +
               `搜索条件: 关键词="${keywordText}"${groupFilter ? `，分组=${groupFilter}` : ''}${tag ? `，标签=${tag}` : ''}${method ? `，方法=${method}` : ''}\n\n` +
               '建议:\n' +
               '- 换更短的关键词（如 "库存" 而不是 "库存查询接口"）\n' +
-              '- 用 gwms_doc_overview 查看所有功能标签和 TAPD 标签名\n' +
-              '- 用 gwms_list_tapd_apis 按 TAPD 需求号查询',
+              `- 用 ${T.overview} 查看所有功能标签和 TAPD 标签名\n` +
+              `- 用 ${T.tapd} 按 TAPD 需求号查询`,
           );
         }
 
         if (items.length === 0) {
           return ok(
-            `${staleNotice(store)}关键词「${keywordText}」匹配 ${total} 个接口，但 offset=${offsetN} 已超出范围（有效范围 0-${total - 1}）。`,
+            `${envHead}${staleNotice(store)}关键词「${keywordText}」匹配 ${total} 个接口，但 offset=${offsetN} 已超出范围（有效范围 0-${total - 1}）。`,
           );
         }
 
@@ -207,23 +220,23 @@ export function registerTools(server: McpServer): void {
         const label = keywordText ? `搜索「${keywordText}」` : '列出接口';
         const start = offsetN + 1;
         const end = offsetN + items.length;
-        const head = `${staleNotice(store)}${groupWarn}${relaxNote}${label}：匹配 ${total} 个接口（文档共 ${store.opCount} 个），显示第 ${start}-${end} 条\n`;
+        const head = `${envHead}${staleNotice(store)}${groupWarn}${relaxNote}${label}：匹配 ${total} 个接口（文档共 ${store.opCount} 个），显示第 ${start}-${end} 条\n`;
         const list = items.map((item, i) => formatEndpoint(offsetN + i + 1, item)).join('\n\n');
         const more =
           end < total ? `\n\n还有 ${total - end} 条未显示，可用 offset=${end} 继续查看。` : '';
         return ok(`${head}\n${list}${more}`);
       } catch (err) {
-        return fail(`搜索失败: ${errText(err)}`);
+        return fail(`${envHead}搜索失败: ${errText(err)}`);
       }
     },
   );
 
   server.registerTool(
-    'gwms_list_tapd_apis',
+    T.tapd,
     {
-      title: '按 TAPD 需求查询改动接口',
+      title: `按 TAPD 需求查询改动接口${envTitle}`,
       description:
-        '查询某个 TAPD 需求（或迭代）改动的接口清单：接口在每次 TAPD 需求中被改动时会打上以需求号命名的标签（如 "1082335"、"v1077548"、"f1098971"），' +
+        `${envScope}查询某个 TAPD 需求（或迭代）改动的接口清单：接口在每次 TAPD 需求中被改动时会打上以需求号命名的标签（如 "1082335"、"v1077548"、"f1098971"），` +
         '本工具列出该标签下的全部接口。不传 tapd_id 时列出所有 TAPD 标签（按需求号从新到旧）。' +
         '结果已去重（接口同时挂在功能标签下不会重复出现），并附带每个接口的功能模块标签。',
       inputSchema: {
@@ -253,7 +266,7 @@ export function registerTools(server: McpServer): void {
           const shown = sorted.slice(0, limit ?? 50);
           const lines = shown.map((t) => `- ${t.name} (${t.count} 个接口)`).join('\n');
           return ok(
-            `${staleNotice(store)}TAPD 需求标签共 ${sorted.length} 个（显示 ${shown.length} 个，按需求号从新到旧）：\n\n${lines}\n\n` +
+            `${envHead}${staleNotice(store)}TAPD 需求标签共 ${sorted.length} 个（显示 ${shown.length} 个，按需求号从新到旧）：\n\n${lines}\n\n` +
               '传入 tapd_id 可查看某个需求改动的接口清单。',
           );
         }
@@ -266,9 +279,9 @@ export function registerTools(server: McpServer): void {
             .slice(0, 10)
             .map((t) => t.name);
           return ok(
-            `${staleNotice(store)}未找到 TAPD 标签 "${tapd_id}"。\n` +
+            `${envHead}${staleNotice(store)}未找到 TAPD 标签 "${tapd_id}"。\n` +
               (near.length ? `相近的标签: ${near.join(', ')}\n` : '') +
-              '可用 gwms_list_tapd_apis（不传参数）查看全部 TAPD 标签。',
+              `可用 ${T.tapd}（不传参数）查看全部 TAPD 标签。`,
           );
         }
 
@@ -291,21 +304,21 @@ export function registerTools(server: McpServer): void {
           .join('\n\n');
 
         return ok(
-          `${staleNotice(store)}TAPD ${tag.name} 改动的接口（${total} 个，已按接口去重，同一接口挂在功能标签下不会重复）：\n\n${list}`,
+          `${envHead}${staleNotice(store)}TAPD ${tag.name} 改动的接口（${total} 个，已按接口去重，同一接口挂在功能标签下不会重复）：\n\n${list}`,
         );
       } catch (err) {
-        return fail(`查询 TAPD 接口失败: ${errText(err)}`);
+        return fail(`${envHead}查询 TAPD 接口失败: ${errText(err)}`);
       }
     },
   );
 
   server.registerTool(
-    'gwms_api_detail',
+    T.detail,
     {
-      title: '查看 GWMS 接口详情',
+      title: `查看 GWMS 接口详情${envTitle}`,
       description:
-        '查看单个接口的完整定义：请求参数、请求体（$ref 数据模型已递归展开并标注模型名）、响应结构、鉴权要求、所属标签与分组。' +
-        'path 从 gwms_search_apis 或 gwms_list_tapd_apis 的结果中获取（需含前导 / 的完整路径）。' +
+        `${envScope}查看单个接口的完整定义：请求参数、请求体（$ref 数据模型已递归展开并标注模型名）、响应结构、鉴权要求、所属标签与分组。` +
+        `path 从 ${T.search} 或 ${T.tapd} 的结果中获取（需含前导 / 的完整路径）。` +
         '若同一路径同时支持 GET 和 POST，可用 method 指定，默认返回第一个。',
       inputSchema: {
         path: z.string().describe('接口路径，如 /api/j/customer/warehouse/warehouse_stock_order/addWarehouseStockOrder'),
@@ -329,9 +342,9 @@ export function registerTools(server: McpServer): void {
         const items = findEndpointsByPath(store, path.trim());
         if (!items.length) {
           return fail(
-            `未找到接口: ${path}\n\n` +
+            `${envHead}未找到接口: ${path}\n\n` +
               '可能原因: 路径不完整或拼写错误（需含前导 /）。\n' +
-              '建议用 gwms_search_apis 搜索关键词，或 gwms_list_tapd_apis 按需求号查找，获取准确路径。',
+              `建议用 ${T.search} 搜索关键词，或 ${T.tapd} 按需求号查找，获取准确路径。`,
           );
         }
 
@@ -353,7 +366,7 @@ export function registerTools(server: McpServer): void {
           }
           if (!found) {
             return fail(
-              `接口 ${path} 不支持 ${m} 方法，可用方法: ${items.flatMap((it) => it.methods).join(', ')}`,
+              `${envHead}接口 ${path} 不支持 ${m} 方法，可用方法: ${items.flatMap((it) => it.methods).join(', ')}`,
             );
           }
         }
@@ -370,6 +383,7 @@ export function registerTools(server: McpServer): void {
           .flatMap((it) => it.methods.map((m) => `${m} (${it.summary})`));
 
         const detail: Record<string, unknown> = {
+          ...(config.envName ? { env: config.envName } : {}),
           path: item.path,
           method: record.method,
           availableMethods: item.methods,
@@ -395,17 +409,17 @@ export function registerTools(server: McpServer): void {
             : '';
         return ok(`${staleNotice(store)}${json}${bigNotice}`);
       } catch (err) {
-        return fail(`获取接口详情失败: ${errText(err)}`);
+        return fail(`${envHead}获取接口详情失败: ${errText(err)}`);
       }
     },
   );
 
   server.registerTool(
-    'gwms_refresh_cache',
+    T.refresh,
     {
-      title: '刷新 GWMS 接口文档缓存',
+      title: `刷新 GWMS 接口文档缓存${envTitle}`,
       description:
-        `强制重新拉取接口文档并刷新本地缓存。当后端接口有更新、缓存提示数据陈旧、或用户明确要求刷新时使用。` +
+        `${envScope}强制重新拉取接口文档并刷新本地缓存。当后端接口有更新、缓存提示数据陈旧、或用户明确要求刷新时使用。` +
         `正常查询走本地缓存（默认 ${fmtTtl(config.ttlMs)} TTL），一般无需手动刷新。`,
       inputSchema: {},
       annotations: { readOnlyHint: true },
@@ -416,7 +430,7 @@ export function registerTools(server: McpServer): void {
         const store = await ensureStore(true);
         if (store.stale) {
           return fail(
-            `刷新失败，仍在使用 ${fmtTime(store.meta.fetchedAt)} 的缓存数据。原因: ${store.staleReason ?? '未知'}`,
+            `${envHead}刷新失败，仍在使用 ${fmtTime(store.meta.fetchedAt)} 的缓存数据。原因: ${store.staleReason ?? '未知'}`,
           );
         }
         const cost = ((Date.now() - start) / 1000).toFixed(1);
@@ -424,10 +438,10 @@ export function registerTools(server: McpServer): void {
           ? `\n- 部分分组拉取失败: ${store.meta.fetchErrors.join('; ')}`
           : '';
         return ok(
-          `缓存已刷新\n- 数据源: ${dataSource(store)}\n- 耗时: ${cost}s\n- 接口总数: ${store.opCount} 个（路径 ${store.endpoints.length} 条）\n- 顶层分组: ${groupSummary(store)}${warn}`,
+          `${envHead}缓存已刷新\n- 数据源: ${dataSource(store)}\n- 耗时: ${cost}s\n- 接口总数: ${store.opCount} 个（路径 ${store.endpoints.length} 条）\n- 顶层分组: ${groupSummary(store)}${warn}`,
         );
       } catch (err) {
-        return fail(`刷新缓存失败: ${errText(err)}`);
+        return fail(`${envHead}刷新缓存失败: ${errText(err)}`);
       }
     },
   );

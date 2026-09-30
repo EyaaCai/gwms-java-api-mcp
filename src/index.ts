@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   }
 
   const server = new McpServer({
-    name: 'gwms-java-api-docs',
+    name: config.envName ? `gwms-java-api-docs-${config.envName}` : 'gwms-java-api-docs',
     version: '1.0.0',
   });
 
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   await server.connect(transport);
 
   console.error(
-    `[gwms-mcp] 已启动 | 数据源=${config.baseUrl}${config.apiDocsPath} | 缓存=${config.cacheDir} | TTL=${fmtTtl(config.ttlMs)} | node=${process.versions.node}`,
+    `[gwms-mcp] 已启动${config.envName ? ` [${config.envName}]` : ''} | 数据源=${config.baseUrl}${config.apiDocsPath} | 缓存=${config.cacheDir} | TTL=${fmtTtl(config.ttlMs)} | node=${process.versions.node}`,
   );
 
   ensureStore().then(

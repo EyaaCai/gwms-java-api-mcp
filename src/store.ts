@@ -223,6 +223,11 @@ async function fetchAndBuild(): Promise<StoreData> {
 function fallbackToCache(reason: string): StoreData {
   const cached = readCache();
   if (!cached) throw new Error(`接口文档拉取失败且无本地缓存: ${reason}`);
+  if (cached.meta.baseUrl !== config.baseUrl || cached.meta.docPath !== config.apiDocsPath) {
+    throw new Error(
+      `接口文档拉取失败，且本地缓存属于其他环境（缓存地址 ${cached.meta.baseUrl}，当前配置 ${config.baseUrl}）: ${reason}`,
+    );
+  }
   const store = buildStore(cached.main, cached.groupsMap, cached.meta, true);
   store.staleReason = reason;
   return store;

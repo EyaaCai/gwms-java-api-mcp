@@ -39,6 +39,45 @@ GWMS_DOC_BASE_URL=http://your-doc-host:port
 
 优先级：**MCP 客户端配置里的 `env` > 项目根目录 `.env` > 代码内置默认值**。其中只有 `GWMS_DOC_BASE_URL` 没有内置默认值，未配置时服务启动即报错并提示配置方式。
 
+### 多环境（dev / test）
+
+开发环境和测试环境的文档地址不同时，**每个环境配一个 MCP 实例**：工具名自动带环境前缀（`gwms_dev_search_apis` / `gwms_test_search_apis`），AI 按你提的环境自动选工具，两个环境的缓存也互相隔离（`.cache/<环境名>/`）。
+
+**第一步**：`.env` 里写上两个地址
+
+```ini
+# 默认地址（test 实例用）
+GWMS_DOC_BASE_URL=http://test-doc-host:port
+# 环境专属地址，dev 实例优先用它
+GWMS_DOC_BASE_URL_DEV=http://dev-doc-host:port
+```
+
+**第二步**：客户端配两条
+
+```json
+{
+  "mcpServers": {
+    "gwms-api-docs-test": {
+      "command": "cmd",
+      "args": ["/c", "D:\\path\\to\\gwms-java-api-mcp\\bin\\start.cmd"],
+      "env": { "GWMS_ENV_NAME": "test" }
+    },
+    "gwms-api-docs-dev": {
+      "command": "cmd",
+      "args": ["/c", "D:\\path\\to\\gwms-java-api-mcp\\bin\\start.cmd"],
+      "env": { "GWMS_ENV_NAME": "dev" }
+    }
+  }
+}
+```
+
+说明：
+
+- 地址查找顺序：`GWMS_DOC_BASE_URL_<环境名大写>` > `GWMS_DOC_BASE_URL`；所以 test 实例没写 `GWMS_DOC_BASE_URL_TEST` 时会用通用项
+- 环境名只用小写字母/数字（如 `dev`、`test`），它会进工具名和缓存目录名
+- 不设 `GWMS_ENV_NAME` 时行为与单环境一致（工具名无前缀、缓存目录 `.cache/`）
+- 之后直接问"dev 环境的备货单接口有哪些"，AI 就会用 `gwms_dev_search_apis`
+
 ## 环境要求
 
 **Node.js >= 18**（需要全局 `fetch`）。
@@ -147,6 +186,8 @@ npm run build
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `GWMS_DOC_BASE_URL` | 无（必填） | 文档服务根地址，不带结尾斜杠 |
+| `GWMS_DOC_BASE_URL_<ENV>` | 无 | 环境专属地址（环境名大写，如 `GWMS_DOC_BASE_URL_DEV`），优先于通用项 |
+| `GWMS_ENV_NAME` | 空 | 实例的环境名（如 `dev`/`test`），设置后工具名带前缀、缓存目录隔离到 `.cache/<环境名>/` |
 | `GWMS_API_DOCS_PATH` | `/v3/api-docs` | springdoc 元数据路径 |
 | `GWMS_CACHE_DIR` | `<项目目录>/.cache` | 缓存目录 |
 | `GWMS_CACHE_TTL_MS` | `21600000`（6 小时） | 缓存有效期，按文档更新频率调整 |

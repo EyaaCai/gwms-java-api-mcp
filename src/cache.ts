@@ -51,5 +51,9 @@ export function readCache(): CachedDocs | null {
 }
 
 export function isFresh(meta: CacheMeta, now = Date.now()): boolean {
-  return now - meta.fetchedAt < config.ttlMs;
+  return (
+    now - meta.fetchedAt < config.ttlMs &&
+    meta.baseUrl === config.baseUrl &&
+    meta.docPath === config.apiDocsPath
+  );
 }

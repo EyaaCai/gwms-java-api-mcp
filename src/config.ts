@@ -48,21 +48,36 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-function requireEnv(name: string): string {
-  const raw = process.env[name]?.trim();
-  if (raw) return raw;
+// 环境名（如 dev / test）：设置后工具名会带前缀、缓存目录按环境隔离
+const envName = (process.env.GWMS_ENV_NAME?.trim() || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+
+// 环境专属变量优先（GWMS_DOC_BASE_URL_DEV），其次通用变量（GWMS_DOC_BASE_URL）
+function resolveBaseUrl(): string {
+  if (envName) {
+    const scoped = process.env[`GWMS_DOC_BASE_URL_${envName.toUpperCase()}`]?.trim();
+    if (scoped) return scoped.replace(/\/+$/, '');
+  }
+  const generic = process.env.GWMS_DOC_BASE_URL?.trim();
+  if (generic) return generic.replace(/\/+$/, '');
+  const scopedVars = Object.keys(process.env).filter((k) => /^GWMS_DOC_BASE_URL_.+$/.test(k));
   throw new Error(
-    `缺少必填配置 ${name}（接口文档服务地址）。\n` +
-      `  方式一：在 ${envFileHint} 中设置，如 ${name}=http://<文档服务地址>\n` +
-      `  方式二：在 MCP 客户端配置的 env 中传入 ${name}\n` +
-      `  可参考项目根目录的 .env.example`,
+    `缺少文档服务地址配置，请设置以下任一项：\n` +
+      `  - GWMS_DOC_BASE_URL（通用）\n` +
+      (envName ? `  - GWMS_DOC_BASE_URL_${envName.toUpperCase()}（${envName} 环境专用，优先于通用项）\n` : '') +
+      (scopedVars.length
+        ? `检测到环境专属地址变量 ${scopedVars.join(' / ')}，请在 MCP 客户端配置里用 GWMS_ENV_NAME 指定使用哪个环境（如 GWMS_ENV_NAME=dev）\n`
+        : '') +
+      `可在 ${envFileHint} 中配置，或在 MCP 客户端配置的 env 中传入（参考 .env.example）。`,
   );
 }
 
 export const config = {
-  baseUrl: requireEnv('GWMS_DOC_BASE_URL').replace(/\/+$/, ''),
+  envName,
+  baseUrl: resolveBaseUrl(),
   apiDocsPath: process.env.GWMS_API_DOCS_PATH?.trim() || '/v3/api-docs',
-  cacheDir: process.env.GWMS_CACHE_DIR?.trim() || path.join(projectRoot, '.cache'),
+  cacheDir:
+    process.env.GWMS_CACHE_DIR?.trim() ||
+    (envName ? path.join(projectRoot, '.cache', envName) : path.join(projectRoot, '.cache')),
   ttlMs: envInt('GWMS_CACHE_TTL_MS', 6 * 60 * 60 * 1000),
   requestTimeoutMs: envInt('GWMS_REQUEST_TIMEOUT_MS', 60 * 1000),
   mainGroup: '所有',
